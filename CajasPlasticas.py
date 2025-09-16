@@ -282,7 +282,7 @@ def init_database():
 init_database()
 
 # -------------------------------
-# FUNCIONES DE CRUD (sin cambios)
+# FUNCIONES DE CRUD
 # -------------------------------
 def agregar_chofer(nombre, contacto):
     conn = get_connection()
@@ -345,25 +345,14 @@ def get_viaje_locales(viaje_id):
 def get_dashboard_stats():
     conn = get_connection()
     
-    # Estadísticas generales
     stats = {}
-    
-    # Total de cajas enviadas
     result = conn.execute("SELECT SUM(cajas_enviadas) FROM viaje_locales").fetchone()
     stats['total_enviadas'] = result[0] or 0
-    
-    # Total de cajas devueltas
     result = conn.execute("SELECT SUM(cajas_devueltas) FROM viaje_locales").fetchone()
     stats['total_devueltas'] = result[0] or 0
-    
-    # Cajas pendientes
     stats['pendientes'] = stats['total_enviadas'] - stats['total_devueltas']
-    
-    # Número de viajes activos
     result = conn.execute("SELECT COUNT(*) FROM viajes WHERE estado = 'En Curso'").fetchone()
     stats['viajes_activos'] = result[0] or 0
-    
-    # Número total de choferes
     result = conn.execute("SELECT COUNT(*) FROM choferes").fetchone()
     stats['total_choferes'] = result[0] or 0
     
@@ -389,7 +378,7 @@ def get_cajas_por_chofer():
     conn.close()
     return df
 
-def get_viajes_detallados():
+def get_viajes_detallados(start_date=None, end_date=None, chofer_id=None, estado=None):
     conn = get_connection()
     query = """
         SELECT 
@@ -404,10 +393,26 @@ def get_viajes_detallados():
         FROM viajes v
         LEFT JOIN choferes c ON v.chofer_id = c.id
         LEFT JOIN viaje_locales vl ON v.id = vl.viaje_id
-        GROUP BY v.id
-        ORDER BY v.fecha_viaje DESC
+        WHERE 1=1
     """
-    df = pd.read_sql_query(query, conn)
+    params = []
+    
+    if start_date:
+        query += " AND v.fecha_viaje >= ?"
+        params.append(start_date)
+    if end_date:
+        query += " AND v.fecha_viaje <= ?"
+        params.append(end_date)
+    if chofer_id:
+        query += " AND v.chofer_id = ?"
+        params.append(chofer_id)
+    if estado and estado != "Todos":
+        query += " AND v.estado = ?"
+        params.append(estado)
+    
+    query += " GROUP BY v.id ORDER BY v.fecha_viaje DESC"
+    
+    df = pd.read_sql_query(query, conn, params=params)
     conn.close()
     return df
 
@@ -462,15 +467,13 @@ with st.sidebar:
     st.metric("Cajas Pendientes", stats['pendientes'])
 
 # -------------------------------
-# DASHBOARD (SIN CAMBIOS - COMO SOLICITASTE)
+# DASHBOARD
 # -------------------------------
 if menu == "🏠 Dashboard":
     st.header("📊 Dashboard General")
     
-    # Obtener estadísticas
     stats = get_dashboard_stats()
     
-    # Métricas principales en columnas
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -503,7 +506,6 @@ if menu == "🏠 Dashboard":
     
     st.divider()
     
-    # Gráficos y tablas
     col1, col2 = st.columns(2)
     
     with col1:
@@ -538,7 +540,6 @@ if menu == "🏠 Dashboard":
     
     st.subheader("🔍 Detalle de Cajas Pendientes")
     if not cajas_chofer.empty:
-        # Mostrar solo choferes con cajas pendientes
         pendientes = cajas_chofer[cajas_chofer['pendientes'] > 0]
         if not pendientes.empty:
             st.dataframe(
@@ -557,13 +558,12 @@ if menu == "🏠 Dashboard":
         st.info("No hay viajes registrados aún.")
 
 # -------------------------------
-# CHOFERES MEJORADOS
+# CHOFERES
 # -------------------------------
 elif menu == "👷 Choferes":
     st.markdown("## 👷 Gestión de Choferes")
     st.markdown("Administra la información de los choferes del sistema")
     
-    # Formulario en card profesional
     with st.container():
         st.markdown('<div class="form-container">', unsafe_allow_html=True)
         st.markdown("### ➕ Agregar Nuevo Chofer")
@@ -604,12 +604,10 @@ elif menu == "👷 Choferes":
 
     st.markdown('<hr class="custom-divider">', unsafe_allow_html=True)
 
-    # Lista de choferes mejorada
     st.markdown("### 📋 Lista de Choferes Registrados")
     choferes = get_choferes()
     
     if not choferes.empty:
-        # Grid de choferes
         cols = st.columns(2)
         for idx, (_, row) in enumerate(choferes.iterrows()):
             with cols[idx % 2]:
@@ -642,13 +640,12 @@ elif menu == "👷 Choferes":
         """, unsafe_allow_html=True)
 
 # -------------------------------
-# VIAJES MEJORADOS
+# VIAJES
 # -------------------------------
 elif menu == "🛣️ Viajes":
     st.markdown("## 🛣️ Gestión de Viajes")
     st.markdown("Administra los viajes y el reparto de cajas")
     
-    # Tabs mejoradas
     tab1, tab2 = st.tabs(["➕ Nuevo Viaje", "📋 Historial de Viajes"])
     
     with tab1:
@@ -680,7 +677,6 @@ elif menu == "🛣️ Viajes":
                     st.markdown("### 🏪 Configuración de Locales")
                     st.markdown("Agrega los locales y la cantidad de cajas para cada uno:")
                     
-                    # Editor de datos mejorado
                     data = st.data_editor(
                         pd.DataFrame([
                             {"🏪 Local": "", "📦 Cajas": 0},
@@ -716,7 +712,6 @@ elif menu == "🛣️ Viajes":
                         )
                     
                     if submit:
-                        # Convertir datos del editor
                         locales = []
                         for _, row in data.iterrows():
                             if row["🏪 Local"] and row["📦 Cajas"] > 0:
@@ -737,14 +732,50 @@ elif menu == "🛣️ Viajes":
 
     with tab2:
         st.markdown("### 📋 Historial de Viajes")
-        viajes = get_viajes_detallados()
+        
+        with st.container():
+            st.markdown('<div class="form-container">', unsafe_allow_html=True)
+            st.markdown("#### 🔍 Filtros de Búsqueda")
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                fecha_inicio = st.date_input("📅 Fecha Inicio", 
+                                           value=datetime.date.today() - timedelta(days=30),
+                                           key="viajes_fecha_inicio")
+            with col2:
+                fecha_fin = st.date_input("📅 Fecha Fin", 
+                                        value=datetime.date.today(),
+                                        key="viajes_fecha_fin")
+            with col3:
+                choferes = get_choferes()
+                chofer_options = pd.concat([pd.DataFrame({"id": [None], "nombre": ["Todos"]}), choferes[["id", "nombre"]]])
+                chofer_id = st.selectbox(
+                    "👷 Chofer",
+                    chofer_options["id"],
+                    format_func=lambda x: "Todos" if x is None else chofer_options[chofer_options["id"] == x]["nombre"].iloc[0],
+                    key="viajes_chofer"
+                )
+            
+            estado = st.selectbox(
+                "📊 Estado",
+                ["Todos", "En Curso", "Completado"],
+                key="viajes_estado"
+            )
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        viajes = get_viajes_detallados(
+            start_date=fecha_inicio,
+            end_date=fecha_fin,
+            chofer_id=chofer_id,
+            estado=estado
+        )
         
         if not viajes.empty:
             for _, row in viajes.iterrows():
                 with st.container():
                     st.markdown('<div class="viaje-card">', unsafe_allow_html=True)
                     
-                    # Header del viaje
                     col1, col2, col3 = st.columns([2, 2, 1])
                     
                     with col1:
@@ -753,7 +784,6 @@ elif menu == "🛣️ Viajes":
                         st.markdown(f"**📅 Fecha:** {row['fecha_viaje']}")
                     
                     with col2:
-                        # Badge de estado mejorado
                         estado_color = "status-activo" if row['estado'] == "En Curso" else "status-completado"
                         st.markdown(
                             f'<div style="text-align: center;"><span class="status-badge {estado_color}">{row["estado"]}</span></div>', 
@@ -768,7 +798,6 @@ elif menu == "🛣️ Viajes":
                         else:
                             st.success("🎉 Completo")
                     
-                    # Métricas de cajas
                     col1, col2, col3 = st.columns(3)
                     with col1:
                         st.metric("📦 Enviadas", row['total_enviadas'] or 0)
@@ -777,7 +806,6 @@ elif menu == "🛣️ Viajes":
                     with col3:
                         st.metric("🚛 Locales", row['total_locales'] or 0)
                     
-                    # Detalles expandibles
                     with st.expander(f"Ver detalles completos del viaje #{row['id']}", expanded=False):
                         locales = get_viaje_locales(row['id'])
                         if not locales.empty:
@@ -823,172 +851,187 @@ elif menu == "🛣️ Viajes":
         else:
             st.markdown("""
             <div class="info-box">
-                <h4>📝 No hay viajes registrados</h4>
-                <p>Crea tu primer viaje usando la pestaña "Nuevo Viaje".</p>
+                <h4>📝 No hay viajes que coincidan con los filtros</h4>
+                <p>Ajusta los filtros o crea un nuevo viaje.</p>
             </div>
             """, unsafe_allow_html=True)
 
 # -------------------------------
-# DEVOLUCIONES MEJORADAS
+# DEVOLUCIONES
 # -------------------------------
 elif menu == "📥 Devoluciones":
     st.markdown("## 📥 Registro de Devoluciones")
     st.markdown("Registra las cajas devueltas por cada local")
 
-    viajes = get_viajes()
+    with st.container():
+        st.markdown('<div class="form-container">', unsafe_allow_html=True)
+        st.markdown("#### 🔍 Filtros de Búsqueda")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            fecha_inicio = st.date_input("📅 Fecha Inicio", 
+                                       value=datetime.date.today() - timedelta(days=30),
+                                       key="devoluciones_fecha_inicio")
+        with col2:
+            fecha_fin = st.date_input("📅 Fecha Fin", 
+                                    value=datetime.date.today(),
+                                    key="devoluciones_fecha_fin")
+        with col3:
+            choferes = get_choferes()
+            chofer_options = pd.concat([pd.DataFrame({"id": [None], "nombre": ["Todos"]}), choferes[["id", "nombre"]]])
+            chofer_id = st.selectbox(
+                "👷 Chofer",
+                chofer_options["id"],
+                format_func=lambda x: "Todos" if x is None else chofer_options[chofer_options["id"] == x]["nombre"].iloc[0],
+                key="devoluciones_chofer"
+            )
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    viajes = get_viajes_detallados(
+        start_date=fecha_inicio,
+        end_date=fecha_fin,
+        chofer_id=chofer_id,
+        estado="En Curso"
+    )
+    
     if viajes.empty:
         st.markdown("""
         <div class="warning-box">
-            <h4>⚠️ No hay viajes disponibles</h4>
-            <p>Primero debes crear viajes para poder registrar devoluciones.</p>
+            <h4>⚠️ No hay viajes activos disponibles</h4>
+            <p>No hay viajes en curso que coincidan con los filtros. Ajusta los filtros o crea/reactiva un viaje.</p>
         </div>
         """, unsafe_allow_html=True)
     else:
-        # Filtrar solo viajes en curso
-        viajes_activos = viajes[viajes['estado'] == 'En Curso']
+        with st.container():
+            st.markdown('<div class="form-container">', unsafe_allow_html=True)
+            st.markdown("### 🛣️ Seleccionar Viaje")
+            
+            viaje_id = st.selectbox(
+                "Elige el viaje para registrar devoluciones:",
+                viajes["id"],
+                format_func=lambda x: f"🚛 Viaje #{x} - {viajes[viajes['id']==x]['chofer_nombre'].iloc[0]} - {viajes[viajes['id']==x]['fecha_viaje'].iloc[0]}",
+                label_visibility="collapsed"
+            )
+            st.markdown('</div>', unsafe_allow_html=True)
         
-        if viajes_activos.empty:
+        locales = get_viaje_locales(viaje_id)
+
+        if locales.empty:
             st.markdown("""
-            <div class="warning-box">
-                <h4>📋 No hay viajes activos</h4>
-                <p>Todos los viajes están marcados como completados. Reactiva un viaje si necesitas registrar más devoluciones.</p>
+            <div class="info-box">
+                <h4>🏪 Sin locales asignados</h4>
+                <p>Este viaje no tiene locales configurados.</p>
             </div>
             """, unsafe_allow_html=True)
         else:
-            # Selector de viaje mejorado
-            with st.container():
-                st.markdown('<div class="form-container">', unsafe_allow_html=True)
-                st.markdown("### 🛣️ Seleccionar Viaje")
-                
-                viaje_id = st.selectbox(
-                    "Elige el viaje para registrar devoluciones:",
-                    viajes_activos["id"],
-                    format_func=lambda x: f"🚛 Viaje #{x} - {viajes_activos[viajes_activos['id']==x]['chofer_nombre'].iloc[0]} - {viajes_activos[viajes_activos['id']==x]['fecha_viaje'].iloc[0]}",
-                    label_visibility="collapsed"
-                )
-                st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown(f"### 🏪 Locales del Viaje #{viaje_id}")
             
-            locales = get_viaje_locales(viaje_id)
-
-            if locales.empty:
+            total_enviadas = locales['cajas_enviadas'].sum()
+            total_devueltas = locales['cajas_devueltas'].sum()
+            total_pendientes = total_enviadas - total_devueltas
+            progreso = (total_devueltas / total_enviadas * 100) if total_enviadas > 0 else 0
+            
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("📦 Total Enviadas", total_enviadas)
+            with col2:
+                st.metric("✅ Total Devueltas", total_devueltas)
+            with col3:
+                st.metric("⚠️ Pendientes", total_pendientes)
+            with col4:
+                st.metric("📊 Progreso", f"{progreso:.1f}%")
+            
+            st.progress(progreso / 100)
+            st.markdown('<hr class="custom-divider">', unsafe_allow_html=True)
+            
+            cols = st.columns(2)
+            for idx, (_, row) in enumerate(locales.iterrows()):
+                pendientes = row["cajas_enviadas"] - row["cajas_devueltas"]
+                
+                with cols[idx % 2]:
+                    with st.container():
+                        if pendientes > 0:
+                            st.markdown(f"""
+                            <div class="professional-card" style="border-left: 4px solid #f59e0b;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                    <h4 style="margin: 0; color: #1f2937;">🏪 {row['numero_local']}</h4>
+                                    <span class="status-badge status-pendiente">⚠️ Pendiente</span>
+                                </div>
+                                <div style="color: #6b7280; margin-bottom: 1rem;">
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <span>📦 Enviadas:</span><strong>{row['cajas_enviadas']}</strong>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <span>✅ Devueltas:</span><strong>{row['cajas_devueltas']}</strong>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; color: #f59e0b;">
+                                        <span>⚠️ Pendientes:</span><strong>{pendientes}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"""
+                            <div class="professional-card" style="border-left: 4px solid #22c55e;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                    <h4 style="margin: 0; color: #1f2937;">🏪 {row['numero_local']}</h4>
+                                    <span class="status-badge status-activo">🎉 Completo</span>
+                                </div>
+                                <div style="color: #6b7280; margin-bottom: 1rem;">
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <span>📦 Enviadas:</span><strong>{row['cajas_enviadas']}</strong>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <span>✅ Devueltas:</span><strong>{row['cajas_devueltas']}</strong>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; color: #22c55e;">
+                                        <span>🎉 Estado:</span><strong>Completo</strong>
+                                    </div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        
+                        if pendientes > 0:
+                            with st.form(f"devolucion_{row['id']}"):
+                                cantidad = st.number_input(
+                                    "Cantidad a devolver:",
+                                    min_value=0, 
+                                    max_value=pendientes, 
+                                    step=1,
+                                    value=0,
+                                    key=f"input_dev_{row['id']}"
+                                )
+                                
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    if st.form_submit_button("📥 Registrar", use_container_width=True, type="primary"):
+                                        if cantidad > 0:
+                                            registrar_devolucion(row['id'], cantidad)
+                                            st.success(f"✅ {cantidad} cajas registradas para {row['numero_local']}")
+                                            st.rerun()
+                                        else:
+                                            st.warning("⚠️ Ingresa una cantidad mayor a 0")
+                                
+                                with col2:
+                                    if st.form_submit_button("📥 Devolver Todas", use_container_width=True):
+                                        registrar_devolucion(row['id'], pendientes)
+                                        st.success(f"✅ Todas las cajas ({pendientes}) registradas para {row['numero_local']}")
+                                        st.rerun()
+                        
+                        st.markdown('<div style="margin-bottom: 1rem;"></div>', unsafe_allow_html=True)
+            
+            if total_pendientes == 0:
                 st.markdown("""
-                <div class="info-box">
-                    <h4>🏪 Sin locales asignados</h4>
-                    <p>Este viaje no tiene locales configurados.</p>
+                <div class="success-box">
+                    <h4>🎉 ¡Viaje Completado!</h4>
+                    <p>Todas las cajas han sido devueltas. ¿Te gustaría marcar este viaje como completado?</p>
                 </div>
                 """, unsafe_allow_html=True)
-            else:
-                st.markdown(f"### 🏪 Locales del Viaje #{viaje_id}")
                 
-                # Mostrar progreso general del viaje
-                total_enviadas = locales['cajas_enviadas'].sum()
-                total_devueltas = locales['cajas_devueltas'].sum()
-                total_pendientes = total_enviadas - total_devueltas
-                progreso = (total_devueltas / total_enviadas * 100) if total_enviadas > 0 else 0
-                
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("📦 Total Enviadas", total_enviadas)
-                with col2:
-                    st.metric("✅ Total Devueltas", total_devueltas)
-                with col3:
-                    st.metric("⚠️ Pendientes", total_pendientes)
-                with col4:
-                    st.metric("📊 Progreso", f"{progreso:.1f}%")
-                
-                st.progress(progreso / 100)
-                st.markdown('<hr class="custom-divider">', unsafe_allow_html=True)
-                
-                # Grid de locales
-                cols = st.columns(2)
-                for idx, (_, row) in enumerate(locales.iterrows()):
-                    pendientes = row["cajas_enviadas"] - row["cajas_devueltas"]
-                    
-                    with cols[idx % 2]:
-                        with st.container():
-                            if pendientes > 0:
-                                st.markdown(f"""
-                                <div class="professional-card" style="border-left: 4px solid #f59e0b;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                                        <h4 style="margin: 0; color: #1f2937;">🏪 {row['numero_local']}</h4>
-                                        <span class="status-badge status-pendiente">⚠️ Pendiente</span>
-                                    </div>
-                                    <div style="color: #6b7280; margin-bottom: 1rem;">
-                                        <div style="display: flex; justify-content: space-between;">
-                                            <span>📦 Enviadas:</span><strong>{row['cajas_enviadas']}</strong>
-                                        </div>
-                                        <div style="display: flex; justify-content: space-between;">
-                                            <span>✅ Devueltas:</span><strong>{row['cajas_devueltas']}</strong>
-                                        </div>
-                                        <div style="display: flex; justify-content: space-between; color: #f59e0b;">
-                                            <span>⚠️ Pendientes:</span><strong>{pendientes}</strong>
-                                        </div>
-                                    </div>
-                                </div>
-                                """, unsafe_allow_html=True)
-                            else:
-                                st.markdown(f"""
-                                <div class="professional-card" style="border-left: 4px solid #22c55e;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                                        <h4 style="margin: 0; color: #1f2937;">🏪 {row['numero_local']}</h4>
-                                        <span class="status-badge status-activo">🎉 Completo</span>
-                                    </div>
-                                    <div style="color: #6b7280; margin-bottom: 1rem;">
-                                        <div style="display: flex; justify-content: space-between;">
-                                            <span>📦 Enviadas:</span><strong>{row['cajas_enviadas']}</strong>
-                                        </div>
-                                        <div style="display: flex; justify-content: space-between;">
-                                            <span>✅ Devueltas:</span><strong>{row['cajas_devueltas']}</strong>
-                                        </div>
-                                        <div style="display: flex; justify-content: space-between; color: #22c55e;">
-                                            <span>🎉 Estado:</span><strong>Completo</strong>
-                                        </div>
-                                    </div>
-                                </div>
-                                """, unsafe_allow_html=True)
-                            
-                            # Formulario de devolución
-                            if pendientes > 0:
-                                with st.form(f"devolucion_{row['id']}"):
-                                    cantidad = st.number_input(
-                                        "Cantidad a devolver:",
-                                        min_value=0, 
-                                        max_value=pendientes, 
-                                        step=1,
-                                        value=0,
-                                        key=f"input_dev_{row['id']}"
-                                    )
-                                    
-                                    col1, col2 = st.columns(2)
-                                    with col1:
-                                        if st.form_submit_button("📥 Registrar", use_container_width=True, type="primary"):
-                                            if cantidad > 0:
-                                                registrar_devolucion(row['id'], cantidad)
-                                                st.success(f"✅ {cantidad} cajas registradas para {row['numero_local']}")
-                                                st.rerun()
-                                            else:
-                                                st.warning("⚠️ Ingresa una cantidad mayor a 0")
-                                    
-                                    with col2:
-                                        if st.form_submit_button("📥 Devolver Todas", use_container_width=True):
-                                            registrar_devolucion(row['id'], pendientes)
-                                            st.success(f"✅ Todas las cajas ({pendientes}) registradas para {row['numero_local']}")
-                                            st.rerun()
-                            
-                            st.markdown('<div style="margin-bottom: 1rem;"></div>', unsafe_allow_html=True)
-                
-                # Verificar si el viaje está completo para sugerir marcarlo como completado
-                if total_pendientes == 0:
-                    st.markdown("""
-                    <div class="success-box">
-                        <h4>🎉 ¡Viaje Completado!</h4>
-                        <p>Todas las cajas han sido devueltas. ¿Te gustaría marcar este viaje como completado?</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    if st.button("✅ Marcar Viaje como Completado", type="primary"):
-                        actualizar_estado_viaje(viaje_id, 'Completado')
-                        st.success("🎉 Viaje marcado como completado")
-                        st.balloons()
-                        st.rerun()
+                if st.button("✅ Marcar Viaje como Completado", type="primary"):
+                    actualizar_estado_viaje(viaje_id, 'Completado')
+                    st.success("🎉 Viaje marcado como completado")
+                    st.balloons()
+                    st.rerun()
                 
