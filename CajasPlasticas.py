@@ -236,8 +236,16 @@ st.markdown("""
 # -------------------------------
 # CONEXIÓN Y BASE DE DATOS
 # -------------------------------
+import os
 def get_connection():
-    return sqlite3.connect("cajas_plasticas.db", check_same_thread=False)
+    # Detecta si está en Streamlit Cloud (ruta /mount/src/) o local
+    base_dir = os.environ.get("STREAMLIT_CLOUD", None)
+    if base_dir:
+        db_path = os.path.join("/mount/src", "cajas_plasticas.db")
+    else:
+        # Usa el directorio actual del script
+        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cajas_plasticas.db")
+    return sqlite3.connect(db_path, check_same_thread=False)
 
 def init_database():
     conn = get_connection()
@@ -276,7 +284,27 @@ def init_database():
         )
     ''')
 
-    conn.commit()
+    # Tabla de locales general
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS reception_local (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            numero INTEGER UNIQUE,
+            nombre TEXT UNIQUE
+        )
+    ''')
+
+    # Cargar locales iniciales si la tabla está vacía
+    count = c.execute("SELECT COUNT(*) FROM reception_local").fetchone()[0]
+    if count == 0:
+        nombres = [
+            "S6 Laurelty", "S6 Luque", "Stock Luque", "S6 Madero", "Stock Britez Borges", "Stock Cnel Martinez", "Stock Palma Loma", "Stock Limpio 1", "Stock Limpio 2", "Stock Villa Hayes", "S6 Portal", "Stock Mariano 1", "Stock Mariano 2", "CD EXPRESS (12)", "Stk Exp. Palma Loma", "Stk Exp. Britez Borges", "Stk Exp. Boqueron", "Stk Exp. Las Residentas", "Stk Exp. Primer Presidente", "S6 Exp. Moiety", "S6 Exp. Oviedo", "Stk Exp. Oviedo", "S6 Exp. San Bernardino 1", "S6 Exp. San Bernardino 2", "Stk Exp. Av. Paraguay", "Stk Exp. Sajonia 1", "Stk Exp. Sajonia 2", "Stk Exp. Patricio Esc", "Stk Exp. Tobati", "Stk Exp. San Isidro", "Stk Exp. Rca Colombia", "Stk Exp. 21 Proyectada", "S6 Exp. Yacht", "Stk Exp. Americo Picco", "Stk Exp. Campo Via", "Stk Exp. Figueroa", "Stk Exp. Las Mercedes", "Stk Exp. Peru", "Stk Exp. Tte Molas", "Stk Exp. 10 de Julio", "Stk Exp. San Lorenzo", "Stk Exp. Pratt Gill", "Stk Exp. Acosta Ñu", "Stk Exp. Campo Jordan", "Stk Exp. Pai Ñu", "Stk Exp. Panchito Lopez", "Stk Exp. Pinedo", "Stk Exp. La Victoria", "Stk Exp. Zeballos Kue", "Stk Exp. Bernardino Caballero", "Stk Exp. Nanawa", "Stk Exp. Piquetecue", "Stk Exp. Villa Hayes", "S6 Exp. Boquerón", "S6 Exp. Molas Lopez 1", "S6 Exp. San Martin", "Stk Exp. Avenida", "Stk Exp. Molas Lopez", "Stk Exp. Mompox", "Stk Exp. Av. Fernando", "Stk Exp. Soldado Ovelar", "Stk Exp. Pintiantuta", "Stk Exp. Guatambu", "Stk Exp. Sacramento", "Stk Exp. Brasilia", "Stk Exp. Gral Santos 2", "CARGA PRODUCTOS FRANZ", "S6 Aregua", "S6 San Bernardino", "S6 Carretera CDE", "S6 San Lorenzo", "Stock Basilica", "Stock Caacupe", "Stock Itaugua", "Stock Itaugua 2", "Stock Ita", "S6 Villeta", "Stock Acceso Sur", "Stock Boqueron", "Stock Defensores", "Stock Guarambare", "Stock San Antonio", "Stock Villa Elisa", "Stock Ypane", "S6 Ñemby", "S6 Japon", "S6 Lambare", "Stock Lambare", "Stock Lambare Carre.L", "Stock Mall Excelsior", "S6 Total", "S6 Sirio", "Stock Barrio Obrero", "Stock Doña Berta", "S6 Exp. Primer Presidente", "Stock C.D.E", "Stock Caacupe 2", "Stock Don Bosco", "Stock Hernandarias", "Stock J.A. Saldivar 1", "Stock J.A. Saldivar 2", "Stock San Lorenzo", "Stock Pdte. Franco", "Stock KM 8 Acaray", "S6 Encarnacion 1", "S6 Encarnacion 2", "Stock Cnel. Bogado", "Stock Paraguari", "Stock Carapegua 1", "Stock Carapegua 2", "Stock P.J.C", "Stock Santani", "S6 Villarrica", "Stock Caaguazu", "Stock Cnel. Oviedo", "Delimarket", "S6 Cambacua", "S6 Denis Roa", "S6 Galeria", "S6 Gran Union", "S6 Mburucuya", "Stock Avelino", "Stock Callei", "Stock Hiper San Lorenzo", "Stock Minga Guazu", "Stock Capiata 1", "Stock Capiata 2", "Stock La Victoria", "Stock Ortiz Guerrero", "Panaderia Centralizada", "S6 Fernando", "Stock Rca. Argentina", "Stock Unicompra", "S6 Hiper", "Stock Mcal Lopez", "Stock Fernando de la Mora", "S6 La Negrita", "S6 Los Laureles", "Stock Artigas", "Stock Brasilia 1", "Stock Brasilia 2", "S6 España", "S6 Mundimark", "Stock Sacramento", "S6 Villamorra", "CARGA PRODUCTOS FRANZ"
+        ]
+        for i, nombre in enumerate(nombres, 1):
+            try:
+                c.execute("INSERT INTO reception_local (numero, nombre) VALUES (?, ?)", (i, nombre))
+            except:
+                pass
+        conn.commit()
     conn.close()
 
 init_database()
@@ -474,10 +502,6 @@ with st.sidebar:
 # LOCALES
 # -------------------------------
 if menu == "🏪 Locales":
-    import os
-    DB_PATH = os.path.join(os.path.dirname(__file__), "db.sqlite3")
-    def get_connection():
-        return sqlite3.connect(DB_PATH)
     def agregar_local(numero, nombre):
         conn = get_connection()
         try:
@@ -486,7 +510,9 @@ if menu == "🏪 Locales":
             st.success("Local agregado correctamente.")
         except sqlite3.IntegrityError:
             st.error("Ya existe un local con ese número o nombre.")
-        conn.close()
+        finally:
+            conn.close()
+
     def editar_local(id, numero, nombre):
         conn = get_connection()
         try:
@@ -495,12 +521,15 @@ if menu == "🏪 Locales":
             st.success("Local editado correctamente.")
         except sqlite3.IntegrityError:
             st.error("Ya existe un local con ese número o nombre.")
-        conn.close()
+        finally:
+            conn.close()
+
     def obtener_locales():
         conn = get_connection()
         locales = conn.execute("SELECT id, numero, nombre FROM reception_local ORDER BY numero").fetchall()
         conn.close()
         return locales
+
     st.header("Gestión de Locales")
     with st.form("agregar_local"):
         numero = st.number_input("Número de local", min_value=1, step=1)
@@ -508,6 +537,7 @@ if menu == "🏪 Locales":
         submitted = st.form_submit_button("Agregar")
         if submitted:
             agregar_local(numero, nombre)
+
     st.subheader("Locales cargados")
     locales = obtener_locales()
     if locales:
@@ -1089,4 +1119,3 @@ elif menu == "📥 Devoluciones":
                     st.success("🎉 Viaje marcado como completado")
                     st.balloons()
                     st.rerun()
-                
