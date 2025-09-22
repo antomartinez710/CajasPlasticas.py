@@ -455,7 +455,7 @@ with st.sidebar:
     st.markdown("### 📋 Menú Principal")
     menu = st.selectbox(
         "",
-        ["🏠 Dashboard", "👷 Choferes", "🛣️ Viajes", "📥 Devoluciones"],
+        ["🏠 Dashboard", "👷 Choferes", "🛣️ Viajes", "📥 Devoluciones", "🏪 Locales"],
         label_visibility="collapsed"
     )
     
@@ -469,7 +469,62 @@ with st.sidebar:
 # -------------------------------
 # DASHBOARD
 # -------------------------------
-if menu == "🏠 Dashboard":
+
+# -------------------------------
+# LOCALES
+# -------------------------------
+if menu == "🏪 Locales":
+    import os
+    DB_PATH = os.path.join(os.path.dirname(__file__), "db.sqlite3")
+    def get_connection():
+        return sqlite3.connect(DB_PATH)
+    def agregar_local(numero, nombre):
+        conn = get_connection()
+        try:
+            conn.execute("INSERT INTO reception_local (numero, nombre) VALUES (?, ?)", (numero, nombre))
+            conn.commit()
+            st.success("Local agregado correctamente.")
+        except sqlite3.IntegrityError:
+            st.error("Ya existe un local con ese número o nombre.")
+        conn.close()
+    def editar_local(id, numero, nombre):
+        conn = get_connection()
+        try:
+            conn.execute("UPDATE reception_local SET numero=?, nombre=? WHERE id=?", (numero, nombre, id))
+            conn.commit()
+            st.success("Local editado correctamente.")
+        except sqlite3.IntegrityError:
+            st.error("Ya existe un local con ese número o nombre.")
+        conn.close()
+    def obtener_locales():
+        conn = get_connection()
+        locales = conn.execute("SELECT id, numero, nombre FROM reception_local ORDER BY numero").fetchall()
+        conn.close()
+        return locales
+    st.header("Gestión de Locales")
+    with st.form("agregar_local"):
+        numero = st.number_input("Número de local", min_value=1, step=1)
+        nombre = st.text_input("Nombre del local")
+        submitted = st.form_submit_button("Agregar")
+        if submitted:
+            agregar_local(numero, nombre)
+    st.subheader("Locales cargados")
+    locales = obtener_locales()
+    if locales:
+        for id, numero, nombre in locales:
+            st.write(f"**{numero}** - {nombre}")
+            with st.expander("Editar", expanded=False):
+                nuevo_numero = st.number_input(f"Editar número para {nombre}", min_value=1, value=numero, key=f"num_{id}")
+                nuevo_nombre = st.text_input(f"Editar nombre para {nombre}", value=nombre, key=f"nom_{id}")
+                if st.button("Guardar cambios", key=f"edit_{id}"):
+                    editar_local(id, nuevo_numero, nuevo_nombre)
+    else:
+        st.info("No hay locales cargados.")
+
+# -------------------------------
+# DASHBOARD
+# -------------------------------
+elif menu == "🏠 Dashboard":
     st.header("📊 Dashboard General")
     
     stats = get_dashboard_stats()
