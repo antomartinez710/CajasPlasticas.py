@@ -873,7 +873,36 @@ elif menu == "🏠 Dashboard":
         except Exception as e:
             st.warning(f"No se pudo preparar el backup de la base: {e}")
 
-    # (Herramienta de limpieza de datos de prueba removida a pedido del usuario)
+    # Herramienta puntual para limpiar datos de prueba (temporal)
+    with st.expander("🧹 Limpiar datos de prueba", expanded=False):
+        st.caption("Elimina viajes y sus locales asociados. Mantiene la lista de Locales. Opcional: eliminar Choferes.")
+        # Calcular conteos
+        try:
+            conn = get_connection()
+            n_viajes = conn.execute("SELECT COUNT(*) FROM viajes").fetchone()[0]
+            n_vl = conn.execute("SELECT COUNT(*) FROM viaje_locales").fetchone()[0]
+            n_ch = conn.execute("SELECT COUNT(*) FROM choferes").fetchone()[0]
+            conn.close()
+        except Exception:
+            n_viajes = n_vl = n_ch = 0
+
+        st.write(f"Viajes: {n_viajes} · Ítems de viaje_locales: {n_vl} · Choferes: {n_ch}")
+        del_ch = st.checkbox("También eliminar Choferes", value=False)
+        confirm = st.checkbox("Entiendo que esto es irreversible", value=False, key="purge_confirm_dashboard")
+        if st.button("🗑️ Borrar datos de prueba", type="secondary", disabled=not confirm):
+            try:
+                conn = get_connection()
+                conn.execute("DELETE FROM viaje_locales")
+                conn.execute("DELETE FROM viajes")
+                if del_ch:
+                    conn.execute("DELETE FROM choferes")
+                conn.commit()
+                conn.close()
+                st.success("Datos eliminados. Los Locales se mantuvieron intactos.")
+                st.balloons()
+                st.rerun()
+            except Exception as e:
+                st.error(f"No se pudieron eliminar los datos: {e}")
 
 # -------------------------------
 # CHOFERES
