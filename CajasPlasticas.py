@@ -15,7 +15,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Identidad de marca (colores y nombre)
 BRAND = {
     "name": "Pastas Frescas",
     "primary": "#1e3a8a",   # azul profundo
@@ -105,6 +104,13 @@ st.markdown("""
 # -------------------------------
 # CONEXIÓN Y BASE DE DATOS
 # -------------------------------
+def get_db_path():
+    """Devuelve la ruta absoluta del archivo SQLite, tanto local como en Streamlit Cloud."""
+    base_dir = os.environ.get("STREAMLIT_CLOUD", None)
+    if base_dir:
+        return os.path.join("/mount/src", "cajas_plasticas.db")
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "cajas_plasticas.db")
+
 def get_connection():
     # Detecta si está en Streamlit Cloud (ruta /mount/src/) o local
     base_dir = os.environ.get("STREAMLIT_CLOUD", None)
@@ -759,6 +765,114 @@ elif menu == "🏠 Dashboard":
     else:
         st.info("No hay viajes registrados aún.")
 
+    # Utilidades ligeras de exportación/backup
+    with st.expander("⬇️ Exportar / Backup", expanded=False):
+        st.caption("Descarga rápida de datos para análisis histórico o respaldo.")
+        col_exp1, col_exp2 = st.columns(2)
+        with col_exp1:
+            try:
+                conn = get_connection()
+                # Exportar choferes
+                df_ch = pd.read_sql_query("SELECT * FROM choferes", conn)
+                st.download_button(
+                    "Choferes (CSV)",
+                    data=df_ch.to_csv(index=False).encode("utf-8"),
+                    file_name="choferes.csv",
+                    mime="text/csv",
+                    key="csv_choferes_dl",
+                    use_container_width=True,
+                )
+                # Exportar locales
+                df_loc = pd.read_sql_query("SELECT * FROM reception_local", conn)
+                st.download_button(
+                    "Locales (CSV)",
+                    data=df_loc.to_csv(index=False).encode("utf-8"),
+                    file_name="locales.csv",
+                    mime="text/csv",
+                    key="csv_locales_dl",
+                    use_container_width=True,
+                )
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+        with col_exp2:
+            try:
+                conn = get_connection()
+                # Resumen de viajes (similar a get_viajes_detallados sin filtros)
+                query_resumen = """
+                    SELECT 
+                        v.id,
+                        v.fecha_viaje,
+                        v.estado,
+                        c.nombre as chofer_nombre,
+                        COUNT(vl.id) as total_locales,
+                        SUM(vl.cajas_enviadas) as total_enviadas,
+                        SUM(vl.cajas_devueltas) as total_devueltas
+                    FROM viajes v
+                    LEFT JOIN choferes c ON v.chofer_id = c.id
+                    LEFT JOIN viaje_locales vl ON v.id = vl.viaje_id
+                    GROUP BY v.id
+                    ORDER BY v.fecha_viaje DESC
+                """
+                df_vr = pd.read_sql_query(query_resumen, conn)
+                st.download_button(
+                    "Viajes (resumen CSV)",
+                    data=df_vr.to_csv(index=False).encode("utf-8"),
+                    file_name="viajes_resumen.csv",
+                    mime="text/csv",
+                    key="csv_viajes_resumen_dl",
+                    use_container_width=True,
+                )
+
+                # Detalle de locales por viaje (incluye fecha y chofer)
+                query_detalle = """
+                    SELECT 
+                        v.id as viaje_id,
+                        v.fecha_viaje,
+                        c.nombre as chofer_nombre,
+                        vl.id as viaje_local_id,
+                        vl.numero_local,
+                        vl.cajas_enviadas,
+                        vl.cajas_devueltas
+                    FROM viaje_locales vl
+                    JOIN viajes v ON vl.viaje_id = v.id
+                    LEFT JOIN choferes c ON v.chofer_id = c.id
+                    ORDER BY v.fecha_viaje DESC, vl.id
+                """
+                df_vl = pd.read_sql_query(query_detalle, conn)
+                st.download_button(
+                    "Viajes (detalle CSV)",
+                    data=df_vl.to_csv(index=False).encode("utf-8"),
+                    file_name="viajes_detalle.csv",
+                    mime="text/csv",
+                    key="csv_viajes_detalle_dl",
+                    use_container_width=True,
+                )
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+        # Backup del archivo .db completo
+        try:
+            db_path = get_db_path()
+            with open(db_path, "rb") as f:
+                db_bytes = f.read()
+            st.download_button(
+                "Base completa (.db)",
+                data=db_bytes,
+                file_name="cajas_plasticas_backup.db",
+                mime="application/octet-stream",
+                key="db_backup_dl",
+                use_container_width=True,
+            )
+        except Exception as e:
+            st.warning(f"No se pudo preparar el backup de la base: {e}")
+
 # -------------------------------
 # CHOFERES
 # -------------------------------
@@ -1321,3 +1435,5 @@ elif menu == "📥 Devoluciones":
                     st.success("🎉 Viaje marcado como completado")
                     st.balloons()
                     st.rerun()
+
+# (Sección de Administración eliminada a pedido del usuario)
