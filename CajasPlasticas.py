@@ -873,6 +873,8 @@ elif menu == "🏠 Dashboard":
         except Exception as e:
             st.warning(f"No se pudo preparar el backup de la base: {e}")
 
+    # (Herramienta de limpieza de datos de prueba removida a pedido del usuario)
+
 # -------------------------------
 # CHOFERES
 # -------------------------------
