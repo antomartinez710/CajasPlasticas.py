@@ -1,242 +1,110 @@
 import streamlit as st
 import sqlite3
+import os
 import pandas as pd
-import datetime
-from datetime import timedelta
 import plotly.express as px
 import plotly.graph_objects as go
+import datetime
+from datetime import timedelta
 
-# -------------------------------
-# CONFIGURACIÓN DE LA APP
-# -------------------------------
+# Configuración de página
 st.set_page_config(
-    page_title="Control de Cajas por Chofer",
-    page_icon="🚛",
-    layout="wide"
+    page_title="Pastas Frescas — Control de Cajas",
+    page_icon="📦",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Estilos CSS personalizados mejorados
+# Identidad de marca (colores y nombre)
+BRAND = {
+    "name": "Pastas Frescas",
+    "primary": "#1e3a8a",   # azul profundo
+    "accent": "#b91c1c",    # rojo
+    "success": "#059669",   # verde
+    "warn": "#b45309",      # naranja
+    "muted": "#374151",     # gris texto
+}
+
+# -------------------------------
+# ESTILOS GLOBALES
+# -------------------------------
 st.markdown("""
 <style>
-    /* Estilos generales */
-    .main .block-container {
-        padding-top: 1rem;
-        padding-bottom: 1rem;
-    }
-    
-    /* Cards profesionales */
-    .professional-card {
-        background: white;
-        border: 1px solid #e1e5e9;
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        transition: all 0.3s ease;
-    }
-    
-    .professional-card:hover {
-        box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-        transform: translateY(-2px);
-    }
-    
-    /* Header personalizado */
-    .custom-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 2rem 1.5rem;
-        border-radius: 12px;
-        margin-bottom: 2rem;
-        text-align: center;
-    }
-    
-    .custom-header h1 {
-        margin: 0;
-        font-size: 2.5rem;
-        font-weight: 600;
-    }
-    
-    .custom-header p {
-        margin: 0.5rem 0 0 0;
-        opacity: 0.9;
-        font-size: 1.1rem;
-    }
-    
-    /* Sidebar mejorada */
-    .css-1d391kg {
-        background-color: #f8f9fa;
-    }
-    
-    /* Botones profesionales */
-    .stButton > button {
-        border-radius: 8px;
-        border: none;
-        font-weight: 500;
-        transition: all 0.3s ease;
-        height: 2.5rem;
-    }
-    
-    .stButton > button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    }
-    
-    /* Botón primario */
-    .primary-button {
-        background: linear-gradient(45deg, #667eea, #764ba2) !important;
-        color: white !important;
-        border: none !important;
-        font-weight: 600 !important;
-        padding: 0.75rem 2rem !important;
-        border-radius: 8px !important;
-    }
-    
-    /* Botón de peligro */
-    .danger-button {
-        background: linear-gradient(45deg, #ff416c, #ff4b2b) !important;
-        color: white !important;
-        border: none !important;
-    }
-    
-    /* Botón de éxito */
-    .success-button {
-        background: linear-gradient(45deg, #56ab2f, #a8e6cf) !important;
-        color: white !important;
-        border: none !important;
-    }
-    
-    /* Métricas del dashboard - NO TOCAR */
-    .metric-card {
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-        padding: 1rem;
-        border-radius: 10px;
-        color: white;
-        text-align: center;
-        margin: 0.5rem 0;
-    }
-    
-    /* Badges de estado */
-    .status-badge {
-        padding: 0.4rem 1rem;
-        border-radius: 20px;
-        font-size: 0.875rem;
-        font-weight: 600;
-        display: inline-block;
-        margin: 0.25rem 0;
-    }
-    .status-activo { 
-        background: linear-gradient(45deg, #4ade80, #22c55e); 
-        color: white; 
-    }
-    .status-completado { 
-        background: linear-gradient(45deg, #60a5fa, #3b82f6); 
-        color: white; 
-    }
-    .status-pendiente { 
-        background: linear-gradient(45deg, #fbbf24, #f59e0b); 
-        color: white; 
-    }
-    
-    /* Cards de viaje mejoradas */
-    .viaje-card {
-        background: white;
-        border: 1px solid #e5e7eb;
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-        transition: all 0.3s ease;
-    }
-    
-    .viaje-card:hover {
-        box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-    }
-    
-    /* Formularios mejorados */
-    .form-container {
-        background: white;
-        border: 1px solid #e1e5e9;
-        border-radius: 12px;
-        padding: 2rem;
-        margin: 1rem 0;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    }
-    
-    /* Tabs personalizadas */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        padding-left: 20px;
-        padding-right: 20px;
-        background-color: #f8f9fa;
-        border-radius: 8px 8px 0px 0px;
-        font-weight: 500;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        background: linear-gradient(45deg, #667eea, #764ba2);
-        color: white;
-    }
-    
-    /* Info boxes */
-    .info-box {
-        background: #f0f9ff;
-        border: 1px solid #0ea5e9;
-        border-radius: 8px;
-        padding: 1rem;
-        margin: 1rem 0;
-    }
-    
-    .warning-box {
-        background: #fffbeb;
-        border: 1px solid #f59e0b;
-        border-radius: 8px;
-        padding: 1rem;
-        margin: 1rem 0;
-    }
-    
-    .success-box {
-        background: #f0fdf4;
-        border: 1px solid #22c55e;
-        border-radius: 8px;
-        padding: 1rem;
-        margin: 1rem 0;
-    }
-    
-    /* Dividers personalizados */
-    .custom-divider {
-        height: 2px;
-        background: linear-gradient(90deg, transparent, #667eea, transparent);
-        border: none;
-        margin: 2rem 0;
-    }
-    
-    /* Data editor mejorado */
-    .stDataEditor {
-        border-radius: 8px;
-        overflow: hidden;
-    }
-    
-    /* Expanders mejorados */
-    .streamlit-expanderHeader {
-        background-color: #f8f9fa;
-        border-radius: 8px;
-    }
-    
-    /* Selectbox personalizado */
-    .stSelectbox > div > div {
-        border-radius: 8px;
-    }
+/* Header limpio */
+.app-header {
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 1rem 0.5rem 0.75rem 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.app-title {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: #111827;
+}
+.app-subtitle {
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+
+/* Badges de estado (más sobrios) */
+.status-badge {
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: inline-block;
+}
+.status-activo { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+.status-completado { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.status-pendiente { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+
+/* Cards y formularios */
+.viaje-card, .professional-card, .form-container {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+.viaje-card { margin: 0.75rem 0; }
+.professional-card { margin: 0.5rem 0; }
+
+/* Tabs limpias */
+.stTabs [data-baseweb="tab-list"] { gap: 6px; }
+.stTabs [data-baseweb="tab"] {
+  height: 42px;
+  padding: 0 14px;
+  background-color: #f9fafb;
+  border-radius: 6px 6px 0 0;
+  font-weight: 500;
+  color: #374151;
+}
+.stTabs [aria-selected="true"] {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-bottom-color: #ffffff;
+  color: #111827;
+}
+
+/* Alertas/Info más discretas */
+.info-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.9rem; }
+.warning-box { background: #fffbeb; border: 1px solid #f59e0b; border-radius: 8px; padding: 0.9rem; }
+.success-box { background: #f0fdf4; border: 1px solid #22c55e; border-radius: 8px; padding: 0.9rem; }
+
+/* Divisor sutil */
+.custom-divider { height: 1px; background: #e5e7eb; border: none; margin: 1.2rem 0; }
+
+/* Pequeños redondeos */
+.stDataEditor { border-radius: 8px; overflow: hidden; }
+.streamlit-expanderHeader { background-color: #f9fafb; border-radius: 8px; }
+.stSelectbox > div > div { border-radius: 8px; }
 </style>
 """, unsafe_allow_html=True)
 
 # -------------------------------
 # CONEXIÓN Y BASE DE DATOS
 # -------------------------------
-import os
 def get_connection():
     # Detecta si está en Streamlit Cloud (ruta /mount/src/) o local
     base_dir = os.environ.get("STREAMLIT_CLOUD", None)
@@ -245,69 +113,91 @@ def get_connection():
     else:
         # Usa el directorio actual del script
         db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cajas_plasticas.db")
-    return sqlite3.connect(db_path, check_same_thread=False)
+    
+    try:
+        # Intenta crear el directorio si no existe
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        conn = sqlite3.connect(db_path, check_same_thread=False)
+        # Verifica que la conexión funciona
+        conn.execute("SELECT 1").fetchone()
+        return conn
+    except Exception as e:
+        st.error(f"Error al conectar con la base de datos: {str(e)}")
+        st.error(f"Ruta de la base de datos: {db_path}")
+        raise
 
 def init_database():
-    conn = get_connection()
-    c = conn.cursor()
+    try:
+        conn = get_connection()
+        c = conn.cursor()
 
-    # Tabla choferes
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS choferes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT NOT NULL UNIQUE,
-            contacto TEXT,
-            fecha_registro DATE DEFAULT CURRENT_DATE
-        )
-    ''')
+        # Tabla choferes
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS choferes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL UNIQUE,
+                contacto TEXT,
+                fecha_registro DATE DEFAULT CURRENT_DATE
+            )
+        ''')
 
-    # Tabla viajes
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS viajes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            chofer_id INTEGER NOT NULL,
-            fecha_viaje DATE NOT NULL,
-            estado TEXT DEFAULT 'En Curso',
-            FOREIGN KEY (chofer_id) REFERENCES choferes (id)
-        )
-    ''')
+        # Tabla viajes
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS viajes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chofer_id INTEGER NOT NULL,
+                fecha_viaje DATE NOT NULL,
+                estado TEXT DEFAULT 'En Curso',
+                FOREIGN KEY (chofer_id) REFERENCES choferes (id)
+            )
+        ''')
 
-    # Tabla locales dentro de cada viaje
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS viaje_locales (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            viaje_id INTEGER NOT NULL,
-            numero_local TEXT NOT NULL,
-            cajas_enviadas INTEGER NOT NULL,
-            cajas_devueltas INTEGER DEFAULT 0,
-            FOREIGN KEY (viaje_id) REFERENCES viajes (id)
-        )
-    ''')
+        # Tabla locales dentro de cada viaje
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS viaje_locales (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                viaje_id INTEGER NOT NULL,
+                numero_local TEXT NOT NULL,
+                cajas_enviadas INTEGER NOT NULL,
+                cajas_devueltas INTEGER DEFAULT 0,
+                FOREIGN KEY (viaje_id) REFERENCES viajes (id)
+            )
+        ''')
 
-    # Tabla de locales general
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS reception_local (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            numero INTEGER UNIQUE,
-            nombre TEXT UNIQUE
-        )
-    ''')
+        # Tabla de locales general
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS reception_local (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                numero INTEGER UNIQUE,
+                nombre TEXT UNIQUE
+            )
+        ''')
 
-    # Cargar locales iniciales si la tabla está vacía
-    count = c.execute("SELECT COUNT(*) FROM reception_local").fetchone()[0]
-    if count == 0:
-        nombres = [
-            "S6 Laurelty", "S6 Luque", "Stock Luque", "S6 Madero", "Stock Britez Borges", "Stock Cnel Martinez", "Stock Palma Loma", "Stock Limpio 1", "Stock Limpio 2", "Stock Villa Hayes", "S6 Portal", "Stock Mariano 1", "Stock Mariano 2", "CD EXPRESS (12)", "Stk Exp. Palma Loma", "Stk Exp. Britez Borges", "Stk Exp. Boqueron", "Stk Exp. Las Residentas", "Stk Exp. Primer Presidente", "S6 Exp. Moiety", "S6 Exp. Oviedo", "Stk Exp. Oviedo", "S6 Exp. San Bernardino 1", "S6 Exp. San Bernardino 2", "Stk Exp. Av. Paraguay", "Stk Exp. Sajonia 1", "Stk Exp. Sajonia 2", "Stk Exp. Patricio Esc", "Stk Exp. Tobati", "Stk Exp. San Isidro", "Stk Exp. Rca Colombia", "Stk Exp. 21 Proyectada", "S6 Exp. Yacht", "Stk Exp. Americo Picco", "Stk Exp. Campo Via", "Stk Exp. Figueroa", "Stk Exp. Las Mercedes", "Stk Exp. Peru", "Stk Exp. Tte Molas", "Stk Exp. 10 de Julio", "Stk Exp. San Lorenzo", "Stk Exp. Pratt Gill", "Stk Exp. Acosta Ñu", "Stk Exp. Campo Jordan", "Stk Exp. Pai Ñu", "Stk Exp. Panchito Lopez", "Stk Exp. Pinedo", "Stk Exp. La Victoria", "Stk Exp. Zeballos Kue", "Stk Exp. Bernardino Caballero", "Stk Exp. Nanawa", "Stk Exp. Piquetecue", "Stk Exp. Villa Hayes", "S6 Exp. Boquerón", "S6 Exp. Molas Lopez 1", "S6 Exp. San Martin", "Stk Exp. Avenida", "Stk Exp. Molas Lopez", "Stk Exp. Mompox", "Stk Exp. Av. Fernando", "Stk Exp. Soldado Ovelar", "Stk Exp. Pintiantuta", "Stk Exp. Guatambu", "Stk Exp. Sacramento", "Stk Exp. Brasilia", "Stk Exp. Gral Santos 2", "CARGA PRODUCTOS FRANZ", "S6 Aregua", "S6 San Bernardino", "S6 Carretera CDE", "S6 San Lorenzo", "Stock Basilica", "Stock Caacupe", "Stock Itaugua", "Stock Itaugua 2", "Stock Ita", "S6 Villeta", "Stock Acceso Sur", "Stock Boqueron", "Stock Defensores", "Stock Guarambare", "Stock San Antonio", "Stock Villa Elisa", "Stock Ypane", "S6 Ñemby", "S6 Japon", "S6 Lambare", "Stock Lambare", "Stock Lambare Carre.L", "Stock Mall Excelsior", "S6 Total", "S6 Sirio", "Stock Barrio Obrero", "Stock Doña Berta", "S6 Exp. Primer Presidente", "Stock C.D.E", "Stock Caacupe 2", "Stock Don Bosco", "Stock Hernandarias", "Stock J.A. Saldivar 1", "Stock J.A. Saldivar 2", "Stock San Lorenzo", "Stock Pdte. Franco", "Stock KM 8 Acaray", "S6 Encarnacion 1", "S6 Encarnacion 2", "Stock Cnel. Bogado", "Stock Paraguari", "Stock Carapegua 1", "Stock Carapegua 2", "Stock P.J.C", "Stock Santani", "S6 Villarrica", "Stock Caaguazu", "Stock Cnel. Oviedo", "Delimarket", "S6 Cambacua", "S6 Denis Roa", "S6 Galeria", "S6 Gran Union", "S6 Mburucuya", "Stock Avelino", "Stock Callei", "Stock Hiper San Lorenzo", "Stock Minga Guazu", "Stock Capiata 1", "Stock Capiata 2", "Stock La Victoria", "Stock Ortiz Guerrero", "Panaderia Centralizada", "S6 Fernando", "Stock Rca. Argentina", "Stock Unicompra", "S6 Hiper", "Stock Mcal Lopez", "Stock Fernando de la Mora", "S6 La Negrita", "S6 Los Laureles", "Stock Artigas", "Stock Brasilia 1", "Stock Brasilia 2", "S6 España", "S6 Mundimark", "Stock Sacramento", "S6 Villamorra", "CARGA PRODUCTOS FRANZ"
-        ]
-        for i, nombre in enumerate(nombres, 1):
-            try:
-                c.execute("INSERT INTO reception_local (numero, nombre) VALUES (?, ?)", (i, nombre))
-            except:
-                pass
-        conn.commit()
-    conn.close()
+        # Cargar locales iniciales si la tabla está vacía
+        count = c.execute("SELECT COUNT(*) FROM reception_local").fetchone()[0]
+        if count == 0:
+            nombres = [
+                "S6 Laurelty", "S6 Luque", "Stock Luque", "S6 Madero", "Stock Britez Borges", "Stock Cnel Martinez", "Stock Palma Loma", "Stock Limpio 1", "Stock Limpio 2", "Stock Villa Hayes", "S6 Portal", "Stock Mariano 1", "Stock Mariano 2", "CD EXPRESS (12)", "Stk Exp. Palma Loma", "Stk Exp. Britez Borges", "Stk Exp. Boqueron", "Stk Exp. Las Residentas", "Stk Exp. Primer Presidente", "S6 Exp. Moiety", "S6 Exp. Oviedo", "Stk Exp. Oviedo", "S6 Exp. San Bernardino 1", "S6 Exp. San Bernardino 2", "Stk Exp. Av. Paraguay", "Stk Exp. Sajonia 1", "Stk Exp. Sajonia 2", "Stk Exp. Patricio Esc", "Stk Exp. Tobati", "Stk Exp. San Isidro", "Stk Exp. Rca Colombia", "Stk Exp. 21 Proyectada", "S6 Exp. Yacht", "Stk Exp. Americo Picco", "Stk Exp. Campo Via", "Stk Exp. Figueroa", "Stk Exp. Las Mercedes", "Stk Exp. Peru", "Stk Exp. Tte Molas", "Stk Exp. 10 de Julio", "Stk Exp. San Lorenzo", "Stk Exp. Pratt Gill", "Stk Exp. Acosta Ñu", "Stk Exp. Campo Jordan", "Stk Exp. Pai Ñu", "Stk Exp. Panchito Lopez", "Stk Exp. Pinedo", "Stk Exp. La Victoria", "Stk Exp. Zeballos Kue", "Stk Exp. Bernardino Caballero", "Stk Exp. Nanawa", "Stk Exp. Piquetecue", "Stk Exp. Villa Hayes", "S6 Exp. Boquerón", "S6 Exp. Molas Lopez 1", "S6 Exp. San Martin", "Stk Exp. Avenida", "Stk Exp. Molas Lopez", "Stk Exp. Mompox", "Stk Exp. Av. Fernando", "Stk Exp. Soldado Ovelar", "Stk Exp. Pintiantuta", "Stk Exp. Guatambu", "Stk Exp. Sacramento", "Stk Exp. Brasilia", "Stk Exp. Gral Santos 2", "CARGA PRODUCTOS FRANZ", "S6 Aregua", "S6 San Bernardino", "S6 Carretera CDE", "S6 San Lorenzo", "Stock Basilica", "Stock Caacupe", "Stock Itaugua", "Stock Itaugua 2", "Stock Ita", "S6 Villeta", "Stock Acceso Sur", "Stock Boqueron", "Stock Defensores", "Stock Guarambare", "Stock San Antonio", "Stock Villa Elisa", "Stock Ypane", "S6 Ñemby", "S6 Japon", "S6 Lambare", "Stock Lambare", "Stock Lambare Carre.L", "Stock Mall Excelsior", "S6 Total", "S6 Sirio", "Stock Barrio Obrero", "Stock Doña Berta", "S6 Exp. Primer Presidente", "Stock C.D.E", "Stock Caacupe 2", "Stock Don Bosco", "Stock Hernandarias", "Stock J.A. Saldivar 1", "Stock J.A. Saldivar 2", "Stock San Lorenzo", "Stock Pdte. Franco", "Stock KM 8 Acaray", "S6 Encarnacion 1", "S6 Encarnacion 2", "Stock Cnel. Bogado", "Stock Paraguari", "Stock Carapegua 1", "Stock Carapegua 2", "Stock P.J.C", "Stock Santani", "S6 Villarrica", "Stock Caaguazu", "Stock Cnel. Oviedo", "Delimarket", "S6 Cambacua", "S6 Denis Roa", "S6 Galeria", "S6 Gran Union", "S6 Mburucuya", "Stock Avelino", "Stock Callei", "Stock Hiper San Lorenzo", "Stock Minga Guazu", "Stock Capiata 1", "Stock Capiata 2", "Stock La Victoria", "Stock Ortiz Guerrero", "Panaderia Centralizada", "S6 Fernando", "Stock Rca. Argentina", "Stock Unicompra", "S6 Hiper", "Stock Mcal Lopez", "Stock Fernando de la Mora", "S6 La Negrita", "S6 Los Laureles", "Stock Artigas", "Stock Brasilia 1", "Stock Brasilia 2", "S6 España", "S6 Mundimark", "Stock Sacramento", "S6 Villamorra", "CARGA PRODUCTOS FRANZ"
+            ]
+            for i, nombre in enumerate(nombres, 1):
+                try:
+                    c.execute("INSERT INTO reception_local (numero, nombre) VALUES (?, ?)", (i, nombre))
+                except sqlite3.IntegrityError:
+                    # Ignora duplicados
+                    pass
+            conn.commit()
+        conn.close()
+    except Exception as e:
+        st.error(f"Error al inicializar la base de datos: {str(e)}")
+        st.error("La aplicación podría no funcionar correctamente. Por favor, verifica los permisos de escritura.")
+        # No relanzar la excepción para que la aplicación pueda funcionar parcialmente
 
-init_database()
+# Inicializar la base de datos con manejo de errores
+try:
+    init_database()
+except Exception as e:
+    st.error("Error crítico al inicializar la base de datos. La aplicación podría no funcionar correctamente.")
+    st.error(f"Detalles del error: {str(e)}")
 
 # -------------------------------
 # FUNCIONES DE CRUD
@@ -369,6 +259,22 @@ def get_viaje_locales(viaje_id):
     )
     conn.close()
     return df
+
+def get_locales_catalogo():
+    """Devuelve una lista de diccionarios con numero, nombre y display 'numero - nombre'."""
+    conn = None
+    try:
+        conn = get_connection()
+        rows = conn.execute("SELECT numero, nombre FROM reception_local ORDER BY numero").fetchall()
+        return [
+            {"numero": r[0], "nombre": r[1], "display": f"{r[0]} - {r[1]}"}
+            for r in rows
+        ]
+    except Exception:
+        return []
+    finally:
+        if conn:
+            conn.close()
 
 def get_dashboard_stats():
     conn = get_connection()
@@ -453,6 +359,23 @@ def registrar_devolucion(local_id, cantidad):
     conn.commit()
     conn.close()
 
+def registrar_devolucion_todas_por_viaje(viaje_id):
+    """Marca como devueltas todas las cajas pendientes de un viaje."""
+    conn = get_connection()
+    try:
+        # Aumenta cajas_devueltas a cajas_enviadas para todos los locales del viaje
+        conn.execute(
+            """
+            UPDATE viaje_locales
+            SET cajas_devueltas = cajas_enviadas
+            WHERE viaje_id = ? AND cajas_devueltas < cajas_enviadas
+            """,
+            (viaje_id,)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
 def eliminar_viaje(viaje_id):
     conn = get_connection()
     conn.execute("DELETE FROM viaje_locales WHERE viaje_id = ?", (viaje_id,))
@@ -480,6 +403,22 @@ st.markdown("""
 # SIDEBAR MEJORADA
 # -------------------------------
 with st.sidebar:
+    # Bloque de marca en la barra lateral
+    try:
+        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo.png")
+    except Exception:
+        logo_path = None
+    col_logo, col_title = st.columns([1, 2])
+    with col_logo:
+        if logo_path and os.path.exists(logo_path):
+            st.image(logo_path, width=96)
+        else:
+            st.markdown("<div style='width:96px;height:96px;border:1px solid #e5e7eb;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#9ca3af;font-size:22px;'>PF</div>", unsafe_allow_html=True)
+    with col_title:
+        st.markdown(f"<div style='font-weight:700;color:#111827;'> {BRAND['name']}</div>", unsafe_allow_html=True)
+        st.caption("Control de Cajas")
+
+    st.markdown("---")
     st.markdown("### 📋 Menú Principal")
     menu = st.selectbox(
         "",
@@ -502,37 +441,124 @@ with st.sidebar:
 # LOCALES
 # -------------------------------
 if menu == "🏪 Locales":
-    def agregar_local(numero, nombre):
-        conn = get_connection()
+    def numero_existe(numero, exclude_id=None):
+        """Devuelve True si el número ya está asignado a otro local.
+        Si exclude_id está definido, ignora ese registro (útil al editar).
+        """
+        conn = None
         try:
+            conn = get_connection()
+            if exclude_id is None:
+                row = conn.execute(
+                    "SELECT 1 FROM reception_local WHERE numero = ? LIMIT 1",
+                    (numero,)
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT 1 FROM reception_local WHERE numero = ? AND id <> ? LIMIT 1",
+                    (numero, exclude_id)
+                ).fetchone()
+            return row is not None
+        except Exception:
+            return False
+        finally:
+            if conn:
+                conn.close()
+
+    def siguiente_numero_disponible():
+        """Obtiene el próximo número sugerido (MAX(numero)+1) o 1 si no hay registros."""
+        conn = None
+        try:
+            conn = get_connection()
+            row = conn.execute("SELECT MAX(numero) FROM reception_local").fetchone()
+            max_num = row[0] if row and row[0] is not None else 0
+            return int(max_num) + 1
+        except Exception:
+            return 1
+        finally:
+            if conn:
+                conn.close()
+
+    def agregar_local(numero, nombre):
+        conn = None
+        try:
+            # Validación de duplicados por número antes de insertar
+            if numero_existe(numero):
+                st.error("Ya existe un local con ese número.")
+                return
+            conn = get_connection()
             conn.execute("INSERT INTO reception_local (numero, nombre) VALUES (?, ?)", (numero, nombre))
             conn.commit()
             st.success("Local agregado correctamente.")
         except sqlite3.IntegrityError:
             st.error("Ya existe un local con ese número o nombre.")
+        except sqlite3.OperationalError as e:
+            st.error(f"Error de base de datos: {str(e)}")
+            st.error("Por favor, verifica que la base de datos esté accesible.")
+        except Exception as e:
+            st.error(f"Error inesperado: {str(e)}")
         finally:
-            conn.close()
+            if conn:
+                conn.close()
 
     def editar_local(id, numero, nombre):
-        conn = get_connection()
+        conn = None
         try:
+            # Validación de duplicados por número, excluyendo el propio registro
+            if numero_existe(numero, exclude_id=id):
+                st.error("No se puede asignar un número que ya está usado por otro local.")
+                return
+            conn = get_connection()
             conn.execute("UPDATE reception_local SET numero=?, nombre=? WHERE id=?", (numero, nombre, id))
             conn.commit()
             st.success("Local editado correctamente.")
         except sqlite3.IntegrityError:
             st.error("Ya existe un local con ese número o nombre.")
+        except sqlite3.OperationalError as e:
+            st.error(f"Error de base de datos: {str(e)}")
+            st.error("Por favor, verifica que la base de datos esté accesible.")
+        except Exception as e:
+            st.error(f"Error inesperado: {str(e)}")
         finally:
-            conn.close()
+            if conn:
+                conn.close()
+
+    def eliminar_local(id):
+        conn = None
+        try:
+            conn = get_connection()
+            conn.execute("DELETE FROM reception_local WHERE id=?", (id,))
+            conn.commit()
+            st.success("Local eliminado correctamente.")
+        except sqlite3.OperationalError as e:
+            st.error(f"Error de base de datos: {str(e)}")
+            st.error("Por favor, verifica que la base de datos esté accesible.")
+        except Exception as e:
+            st.error(f"Error inesperado: {str(e)}")
+        finally:
+            if conn:
+                conn.close()
 
     def obtener_locales():
-        conn = get_connection()
-        locales = conn.execute("SELECT id, numero, nombre FROM reception_local ORDER BY numero").fetchall()
-        conn.close()
-        return locales
+        conn = None
+        try:
+            conn = get_connection()
+            locales = conn.execute("SELECT id, numero, nombre FROM reception_local ORDER BY numero").fetchall()
+            return locales
+        except sqlite3.OperationalError as e:
+            st.error(f"Error de base de datos: {str(e)}")
+            st.error("Por favor, verifica que la base de datos esté accesible.")
+            return []
+        except Exception as e:
+            st.error(f"Error inesperado al obtener locales: {str(e)}")
+            return []
+        finally:
+            if conn:
+                conn.close()
 
     st.header("Gestión de Locales")
     with st.form("agregar_local"):
-        numero = st.number_input("Número de local", min_value=1, step=1)
+        numero = st.number_input("Número de local", min_value=1, step=1, value=siguiente_numero_disponible())
         nombre = st.text_input("Nombre del local")
         submitted = st.form_submit_button("Agregar")
         if submitted:
@@ -541,13 +567,103 @@ if menu == "🏪 Locales":
     st.subheader("Locales cargados")
     locales = obtener_locales()
     if locales:
-        for id, numero, nombre in locales:
-            st.write(f"**{numero}** - {nombre}")
-            with st.expander("Editar", expanded=False):
-                nuevo_numero = st.number_input(f"Editar número para {nombre}", min_value=1, value=numero, key=f"num_{id}")
-                nuevo_nombre = st.text_input(f"Editar nombre para {nombre}", value=nombre, key=f"nom_{id}")
-                if st.button("Guardar cambios", key=f"edit_{id}"):
-                    editar_local(id, nuevo_numero, nuevo_nombre)
+        # Crear DataFrame base
+        import pandas as pd
+        df_locales = pd.DataFrame(locales, columns=['ID', 'Número', 'Nombre'])
+
+        # Filtros de búsqueda y orden
+        with st.container():
+            col_f1, col_f2 = st.columns([2, 1])
+            with col_f1:
+                filtro_texto = st.text_input("🔎 Buscar", placeholder="Por número o nombre…")
+            with col_f2:
+                ordenar_por = st.selectbox(
+                    "Ordenar por",
+                    ["Número ascendente", "Número descendente", "Nombre A-Z", "Nombre Z-A"],
+                    index=0
+                )
+
+        # Aplicar filtro por texto
+        df_filtrado = df_locales.copy()
+        if filtro_texto:
+            filtro = str(filtro_texto).strip()
+            mask = (
+                df_filtrado['Nombre'].astype(str).str.contains(filtro, case=False, na=False) |
+                df_filtrado['Número'].astype(str).str.contains(filtro, case=False, na=False)
+            )
+            df_filtrado = df_filtrado[mask]
+
+        # Aplicar ordenamiento
+        if ordenar_por.startswith("Número"):
+            asc = ordenar_por == "Número ascendente"
+            df_filtrado = df_filtrado.sort_values(by='Número', ascending=asc)
+        else:
+            asc = ordenar_por == "Nombre A-Z"
+            df_filtrado = df_filtrado.sort_values(by='Nombre', ascending=asc)
+
+        # Métricas
+        col_m1, col_m2 = st.columns(2)
+        with col_m1:
+            st.metric("Total de locales registrados", len(df_locales))
+        with col_m2:
+            st.metric("Coincidencias con filtro", len(df_filtrado))
+
+        # Mostrar tabla filtrada simple (sin cuadricula ni paginación)
+        st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
+
+        st.markdown("---")
+        st.subheader("Acciones sobre locales")
+
+        if df_filtrado.empty:
+            st.info("No hay resultados con los filtros actuales. Ajusta la búsqueda para continuar.")
+        else:
+            # Selector para elegir el local a editar/eliminar (sobre el resultado filtrado)
+            opciones_locales = [f"{row['Número']} - {row['Nombre']}" for _, row in df_filtrado.iterrows()]
+            local_seleccionado = st.selectbox(
+                "Selecciona un local para editar o eliminar:",
+                opciones_locales,
+                key="selector_local"
+            )
+
+            if local_seleccionado:
+                # Encontrar el registro seleccionado dentro del filtrado
+                indice_seleccionado = opciones_locales.index(local_seleccionado)
+                fila_sel = df_filtrado.iloc[indice_seleccionado]
+                id_local = int(fila_sel['ID'])
+                numero_actual = int(fila_sel['Número'])
+                nombre_actual = str(fila_sel['Nombre'])
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.markdown("##### ✏️ Editar Local")
+                    with st.form(f"editar_local_{id_local}"):
+                        nuevo_numero = st.number_input("Nuevo número:", min_value=1, value=numero_actual)
+                        nuevo_nombre = st.text_input("Nuevo nombre:", value=nombre_actual)
+                    
+                        if st.form_submit_button("💾 Guardar cambios", use_container_width=True):
+                            editar_local(id_local, nuevo_numero, nuevo_nombre)
+                            st.rerun()
+
+                with col2:
+                    st.markdown("##### 🗑️ Eliminar Local")
+                    st.warning(f"¿Estás seguro de que deseas eliminar el local **{numero_actual} - {nombre_actual}**?")
+                    st.caption("⚠️ Esta acción no se puede deshacer.")
+
+                    # Checkbox de confirmación
+                    confirmar_eliminacion = st.checkbox(
+                        "Confirmo que deseo eliminar este local",
+                        key=f"confirm_delete_{id_local}"
+                    )
+
+                    if st.button(
+                        "🗑️ Eliminar Local",
+                        type="secondary",
+                        use_container_width=True,
+                        disabled=not confirmar_eliminacion
+                    ):
+                        eliminar_local(id_local)
+                        st.rerun()
     else:
         st.info("No hay locales cargados.")
 
@@ -600,7 +716,7 @@ elif menu == "🏠 Dashboard":
                 labels=['Devueltas', 'Pendientes'],
                 values=[stats['total_devueltas'], stats['pendientes']],
                 hole=.3,
-                marker_colors=['#22c55e', '#f59e0b']
+                marker_colors=[BRAND['success'], BRAND['warn']]
             )])
             fig.update_layout(height=300)
             st.plotly_chart(fig, use_container_width=True)
@@ -616,7 +732,8 @@ elif menu == "🏠 Dashboard":
                 x='nombre', 
                 y=['enviadas', 'devueltas', 'pendientes'],
                 title="Distribución por Chofer",
-                barmode='group'
+                barmode='group',
+                color_discrete_sequence=[BRAND['primary'], BRAND['success'], BRAND['warn']]
             )
             fig.update_layout(height=300)
             st.plotly_chart(fig, use_container_width=True)
@@ -745,74 +862,112 @@ elif menu == "🛣️ Viajes":
         else:
             with st.container():
                 st.markdown('<div class="form-container">', unsafe_allow_html=True)
-                
-                with st.form("nuevo_viaje", clear_on_submit=True):
-                    st.markdown("### 🚀 Crear Nuevo Viaje")
-                    
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        chofer_id = st.selectbox(
-                            "🚛 Selecciona Chofer",
-                            choferes["id"],
-                            format_func=lambda x: f"👷 {choferes[choferes['id'] == x]['nombre'].iloc[0]}"
-                        )
-                    with col2:
-                        fecha = st.date_input("📅 Fecha del Viaje", datetime.date.today())
 
-                    st.markdown("### 🏪 Configuración de Locales")
-                    st.markdown("Agrega los locales y la cantidad de cajas para cada uno:")
-                    
-                    data = st.data_editor(
-                        pd.DataFrame([
-                            {"🏪 Local": "", "📦 Cajas": 0},
-                            {"🏪 Local": "", "📦 Cajas": 0},
-                            {"🏪 Local": "", "📦 Cajas": 0},
-                            {"🏪 Local": "", "📦 Cajas": 0},
-                            {"🏪 Local": "", "📦 Cajas": 0}
-                        ]),
-                        num_rows="dynamic",
+                st.markdown("### 🚀 Crear Nuevo Viaje")
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    chofer_id = st.selectbox(
+                        "🚛 Selecciona Chofer",
+                        choferes["id"],
+                        format_func=lambda x: f"👷 {choferes[choferes['id'] == x]['nombre'].iloc[0]}"
+                    )
+                with col2:
+                    fecha = st.date_input("📅 Fecha del Viaje", datetime.date.today())
+
+                st.markdown("### 🏪 Configuración de Locales")
+                st.markdown("Agrega los locales y la cantidad de cajas para cada uno:")
+
+                catalogo_locales = get_locales_catalogo()
+                placeholder_local = "— Seleccionar —"
+                opciones_locales = [placeholder_local] + ([item["display"] for item in catalogo_locales] if catalogo_locales else [])
+
+                # Modo por ítems: menos reruns, cada fila se agrega con un submit explícito
+                if "nuevo_viaje_items" not in st.session_state:
+                    st.session_state["nuevo_viaje_items"] = []
+
+                with st.form("form_item_viaje", clear_on_submit=True):
+                    col_i1, col_i2, col_i3 = st.columns([3, 1.5, 1])
+                    with col_i1:
+                        local_sel = st.selectbox(
+                            "Local",
+                            opciones_locales,
+                            index=0,
+                            key="item_local_select"
+                        )
+                    with col_i2:
+                        cajas_item = st.number_input(
+                            "Cajas",
+                            min_value=0,
+                            step=1,
+                            value=0,
+                            key="item_cajas_input"
+                        )
+                    with col_i3:
+                        add_clicked = st.form_submit_button("➕ Agregar", use_container_width=True)
+
+                if add_clicked:
+                    if local_sel != placeholder_local and cajas_item > 0:
+                        st.session_state["nuevo_viaje_items"].append({
+                            "🏪 Local": local_sel,
+                            "📦 Cajas": int(cajas_item)
+                        })
+                    else:
+                        st.warning("Selecciona un local y una cantidad mayor a 0")
+
+                # Listado de ítems agregados con botón de eliminar en la misma fila
+                items = st.session_state["nuevo_viaje_items"]
+                if not items:
+                    st.info("No hay ítems agregados todavía.")
+                else:
+                    # Encabezados
+                    hc1, hc2, hc3 = st.columns([6, 2, 1])
+                    with hc1:
+                        st.markdown("**🏪 Local**")
+                    with hc2:
+                        st.markdown("**📦 Cajas**")
+                    with hc3:
+                        st.markdown("**Acciones**")
+
+                    # Filas
+                    for idx, it in enumerate(items):
+                        rc1, rc2, rc3 = st.columns([6, 2, 1])
+                        with rc1:
+                            st.text(str(it.get("🏪 Local", "")))
+                        with rc2:
+                            st.text(str(it.get("📦 Cajas", "")))
+                        with rc3:
+                            if st.button("🗑️ Eliminar", key=f"del_item_{idx}", use_container_width=True):
+                                try:
+                                    st.session_state["nuevo_viaje_items"].pop(idx)
+                                except Exception:
+                                    pass
+                                st.rerun()
+
+                col1, col2, col3 = st.columns([1, 1, 1])
+                with col2:
+                    crear_items_clicked = st.button(
+                        "🚀 Crear Viaje",
                         use_container_width=True,
-                        column_config={
-                            "🏪 Local": st.column_config.TextColumn(
-                                "Número/Nombre del Local", 
-                                help="Identificador único del local",
-                                required=True
-                            ),
-                            "📦 Cajas": st.column_config.NumberColumn(
-                                "Cantidad de Cajas", 
-                                min_value=0, 
-                                step=1,
-                                help="Número de cajas a entregar",
-                                required=True
-                            )
-                        }
+                        type="primary",
+                        key="btn_crear_viaje_items"
                     )
 
-                    col1, col2, col3 = st.columns([1, 1, 1])
-                    with col2:
-                        submit = st.form_submit_button(
-                            "🚀 Crear Viaje", 
-                            use_container_width=True,
-                            type="primary"
-                        )
-                    
-                    if submit:
-                        locales = []
-                        for _, row in data.iterrows():
-                            if row["🏪 Local"] and row["📦 Cajas"] > 0:
-                                locales.append({
-                                    "numero_local": row["🏪 Local"],
-                                    "cajas_enviadas": row["📦 Cajas"]
-                                })
-                        
-                        if locales:
-                            viaje_id = crear_viaje(chofer_id, fecha, locales)
-                            st.success(f"✅ Viaje #{viaje_id} creado exitosamente")
-                            st.balloons()
-                            st.rerun()
-                        else:
-                            st.error("⚠️ Debes agregar al menos un local con cajas")
-                
+                if crear_items_clicked:
+                    locales = [
+                        {"numero_local": it["🏪 Local"], "cajas_enviadas": int(it["📦 Cajas"])}
+                        for it in st.session_state["nuevo_viaje_items"]
+                        if it.get("🏪 Local") and (it.get("📦 Cajas") or 0) > 0
+                    ]
+                    if locales:
+                        viaje_id = crear_viaje(chofer_id, fecha, locales)
+                        st.success(f"✅ Viaje #{viaje_id} creado exitosamente")
+                        st.balloons()
+                        st.session_state["nuevo_viaje_items"] = []
+                        st.rerun()
+                    else:
+                        st.error("⚠️ Debes agregar al menos un local con cajas")
+
                 st.markdown('</div>', unsafe_allow_html=True)
 
     with tab2:
@@ -1028,6 +1183,53 @@ elif menu == "📥 Devoluciones":
                 st.metric("📊 Progreso", f"{progreso:.1f}%")
             
             st.progress(progreso / 100)
+
+            # Acción masiva: Entregar todas las pendientes del viaje
+            if total_pendientes > 0:
+                with st.container():
+                    st.markdown(
+                        "<div class=\"warning-box\"><strong>Acción rápida:</strong> Puedes registrar todas las cajas pendientes de este viaje de una sola vez.</div>",
+                        unsafe_allow_html=True
+                    )
+                    colb1, colb2 = st.columns([1, 2])
+                    with colb1:
+                        confirmar_todas = st.checkbox("Confirmo entregar todas", key=f"confirm_all_{viaje_id}")
+                    with colb2:
+                        if st.button("📦 Entregar todas", type="primary", disabled=not confirmar_todas):
+                            registrar_devolucion_todas_por_viaje(viaje_id)
+                            # Guardar bandera para mostrar prompt de finalización al recargar
+                            st.session_state["finalize_prompt_viaje_id"] = viaje_id
+                            st.success("✅ Se registraron todas las cajas pendientes como devueltas.")
+                            st.rerun()
+            
+            # Si después de una acción masiva no quedan pendientes, preguntar si finalizar
+            if total_pendientes == 0 and st.session_state.get("finalize_prompt_viaje_id") == viaje_id:
+                with st.container():
+                    st.markdown(
+                        """
+                        <div class=\"success-box\">
+                            <h4>🎉 ¡Todas las cajas de este viaje fueron registradas como devueltas!</h4>
+                            <p>¿Deseas marcar el viaje como <strong>Completado</strong> ahora?</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                    c1, c2 = st.columns([1, 1])
+                    with c1:
+                        if st.button("✅ Sí, finalizar viaje", key=f"finalizar_{viaje_id}", type="primary", use_container_width=True):
+                            actualizar_estado_viaje(viaje_id, 'Completado')
+                            try:
+                                del st.session_state["finalize_prompt_viaje_id"]
+                            except KeyError:
+                                pass
+                            st.success("🚛 Viaje marcado como Completado")
+                            st.rerun()
+                    with c2:
+                        if st.button("⏳ Ahora no", key=f"no_finalizar_{viaje_id}", use_container_width=True):
+                            try:
+                                del st.session_state["finalize_prompt_viaje_id"]
+                            except KeyError:
+                                pass
             st.markdown('<hr class="custom-divider">', unsafe_allow_html=True)
             
             cols = st.columns(2)
@@ -1106,7 +1308,7 @@ elif menu == "📥 Devoluciones":
                         
                         st.markdown('<div style="margin-bottom: 1rem;"></div>', unsafe_allow_html=True)
             
-            if total_pendientes == 0:
+            if total_pendientes == 0 and st.session_state.get("finalize_prompt_viaje_id") != viaje_id:
                 st.markdown("""
                 <div class="success-box">
                     <h4>🎉 ¡Viaje Completado!</h4>
