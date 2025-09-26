@@ -89,15 +89,7 @@ from app.services.users_service import (
 # -------------------------------
 # CONSTANTES DE MARCA (restauradas / nuevas)
 # -------------------------------
-BRAND = {
-    "name": "PlastiFlow",
-    "primary": "#2563eb",
-    "secondary": "#1e3a8a",
-    "accent": "#f59e0b",
-    "success": "#16a34a",
-    "warn": "#f59e0b",
-    "danger": "#dc2626"
-}
+
 
 # Valores antiguos que otras partes podrían esperar
 PAGE_TITLE = "Control de Cajas"
@@ -129,8 +121,7 @@ except Exception:
 
 ## Import de modelos CD eliminado tras migración completa a cd_service
 
-"""Modelos de usuarios legacy eliminados tras migración a users_service."""
-mdl_create_user = mdl_list_users = mdl_update_user = mdl_delete_user = mdl_set_user_password = None
+
 
 # Autenticación extendida (si existía) – mantener nombres previos
 def auth_get_user(username: str):
@@ -374,8 +365,9 @@ with st.sidebar:
         else:
             st.markdown("<div style='width:96px;height:96px;border:1px solid #e5e7eb;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#9ca3af;font-size:22px;'>PF</div>", unsafe_allow_html=True)
     with col_title:
-        st.markdown(f"<div style='font-weight:700;color:#111827;'> {BRAND['name']}</div>", unsafe_allow_html=True)
+    # Eliminado nombre de marca. Se muestran título y subtítulo.
         st.caption("Control de Cajas")
+        st.caption("Pastas Frescas")
 
     st.markdown("---")
     # Login / User info
@@ -624,7 +616,7 @@ elif menu == "🏠 Dashboard":
             labels=['Devueltas', 'Pendientes'],
             values=[stats['total_devueltas'], stats['pendientes']],
             hole=.3,
-            marker_colors=[BRAND['success'], BRAND['warn']]
+            marker_colors=["#16a34a", "#f59e0b"]
         )])
         fig.update_layout(height=300, margin=dict(t=10,b=10,l=10,r=10))
         st.plotly_chart(fig, use_container_width=True)
