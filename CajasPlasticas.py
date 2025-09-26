@@ -1830,7 +1830,10 @@ elif menu == "👥 Usuarios":
                     st.rerun()
 
     with tab_manage:
-        df_users = list_users()
+        # El servicio devuelve una lista de dicts; convertir a DataFrame para usar .empty y iterrows
+        raw_users = list_users() or []
+        import pandas as pd
+        df_users = pd.DataFrame(raw_users, columns=["id","username","role"]) if raw_users else pd.DataFrame(columns=["id","username","role"])
         if df_users.empty:
             st.info("No hay usuarios registrados.")
         else:
