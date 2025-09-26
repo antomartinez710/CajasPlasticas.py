@@ -783,6 +783,15 @@ elif menu == "🏠 Dashboard":
                             cur.execute("DELETE FROM choferes")
                         cur.execute("DELETE FROM cd_despachos")
                         cur.execute("DELETE FROM cd_envios_origen")
+                        # Reiniciar contadores AUTOINCREMENT (sqlite_sequence) para que empiecen desde 1
+                        try:
+                            tablas_reset = ["devoluciones_log","viajes","viaje_locales","cd_despachos","cd_envios_origen"]
+                            if del_ch:
+                                tablas_reset.append("choferes")
+                            for t in tablas_reset:
+                                cur.execute("DELETE FROM sqlite_sequence WHERE name=?", (t,))
+                        except Exception:
+                            pass  # Si no existe la tabla sqlite_sequence o falla, ignorar
                         cur.execute("COMMIT")
                         conn.close()
                         st.success("Datos eliminados. Los Locales se mantuvieron intactos.")
